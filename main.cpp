@@ -1,25 +1,33 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_mixer.h>
+#include <SDL2/SDL_image.h>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
 #include <string>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 using namespace std;
 
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 600;
+const int SPAWN_SAFE_RADIUS = 100;
 
 struct Entity {
     SDL_Rect rect;
     int speed;
 };
 
+struct Coin {
+    SDL_Rect rect;
+};
+
 struct Enemy : public Entity {
     int health;
+    enum EnemyType { BASIC, FAST, TANK } type;
 };
 
 struct Bullet {
@@ -44,7 +52,9 @@ public:
 
 class Game {
 public:
-    Game() : running(false), wave(1), playerSpeed(5), playerHealth(100), score(0) {
+    enum GameState { PLAYING, SHOP };
+    GameState gameState = PLAYING;
+    Game() : running(false), wave(1), playerSpeed(5), playerHealth(100), score(0), coins(0) {
         player.rect = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 40, 40};
         player.speed = playerSpeed;
         srand(static_cast<unsigned int>(time(nullptr)));
@@ -52,6 +62,7 @@ public:
 
     bool init() {
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) return false;
+        if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) return false;
         if (TTF_Init() < 0) return false;
         window = SDL_CreateWindow("Wave Survival", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -59,7 +70,24 @@ public:
         Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096);
         hitSound = Mix_LoadWAV("hit.wav");
         pickupSound = Mix_LoadWAV("pickup.wav");
+        playerTexture = loadTexture("player.png");
+        enemyTexture = loadTexture("enemy.png");
+        coinTexture = loadTexture("coin.png");
+        powerUpTexture = loadTexture("powerup.png");
+
+if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture) return false;
         return window && renderer && font && hitSound && pickupSound;
+    }
+
+    SDL_Texture* loadTexture(const std::string& path) {
+        SDL_Surface* surface = IMG_Load(path.c_str());
+        if (!surface) {
+            cout << "Failed to load image: " << IMG_GetError() << endl;
+            return nullptr;
+        }
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_FreeSurface(surface);
+        return texture;
     }
 
     void run() {
@@ -75,6 +103,11 @@ public:
     }
 
     void cleanup() {
+        SDL_DestroyTexture(playerTexture);
+    SDL_DestroyTexture(enemyTexture);
+    SDL_DestroyTexture(coinTexture);
+    SDL_DestroyTexture(powerUpTexture);
+    IMG_Quit();
         Mix_FreeChunk(hitSound);
         Mix_FreeChunk(pickupSound);
         TTF_CloseFont(font);
@@ -91,23 +124,108 @@ private:
     TTF_Font* font;
     Mix_Chunk* hitSound;
     Mix_Chunk* pickupSound;
+    SDL_Texture* playerTexture;
+    SDL_Texture* enemyTexture;
+    SDL_Texture* coinTexture;
+    SDL_Texture* powerUpTexture;
     Entity player;
     vector<Enemy> enemies;
+    vector<Coin> coinsOnGround;
     vector<PowerUp> powerUps;
     vector<Bullet> bullets;
     bool running;
     int wave;
     int playerSpeed;
     int playerHealth;
+    int playerDamage;
     int score;
+    int coins;
     Uint32 lastFireTime;
     const Uint32 fireCooldown = 300;
+
+    SDL_Point randomSafeSpawn() {
+        SDL_Point point;
+        do {
+            point.x = rand() % (SCREEN_WIDTH - 40);
+            point.y = rand() % (SCREEN_HEIGHT - 40);
+        } while (sqrt(pow(player.rect.x - point.x, 2) + pow(player.rect.y - point.y, 2)) < SPAWN_SAFE_RADIUS);
+        return point;
+    }
+    
+    void renderEntity(SDL_Texture* texture, SDL_Rect& rect) {
+        SDL_RenderCopy(renderer, texture, NULL, &rect);
+    }
 
     void handleEvents() {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
+            if (gameState == SHOP) {
+                if (e.type == SDL_KEYDOWN) {
+                    if (e.key.keysym.sym == SDLK_1 && coins >= 20) { 
+                        playerHealth += 20;
+                        coins -= 20;
+                    } else if (e.key.keysym.sym == SDLK_2 && coins >= 25) {
+                        playerDamage += 2;
+                        coins -= 25;
+                    } else if (e.key.keysym.sym == SDLK_RETURN) { 
+                        gameState = PLAYING;
+                        spawnWave();
+                    }
+                }
+            }
         }
+    }
+
+    void spawnWave() {
+        enemies.clear();
+        for (int i = 0; i < wave * 5; i++) {
+            Enemy e;
+            SDL_Point spawn = randomSafeSpawn();
+            e.rect = {spawn.x, spawn.y, 30, 30};
+
+            int enemyTypeRand = rand() % 3;
+            e.type = static_cast<Enemy::EnemyType>(enemyTypeRand);
+            if (e.type == Enemy::BASIC) {
+                e.speed = 1 + wave / 3;
+                e.health = 10 + wave * 2;
+            } else if (e.type == Enemy::FAST) {
+                e.speed = 2 + wave / 2;
+                e.health = 5 + wave;
+            } else if (e.type == Enemy::TANK) {
+                e.speed = 1;
+                e.health = 30 + wave * 5;
+                e.rect.w = 40; e.rect.h = 40;
+            }
+            enemies.push_back(e);
+        }
+        if (rand() % 5 == 0) {
+            PowerUp p;
+            SDL_Point spawn = randomSafeSpawn();
+            p.rect = {spawn.x, spawn.y, 20, 20};
+            p.type = (rand() % 2 == 0) ? PowerUp::HEALTH : PowerUp::SPEED;
+            p.speed = 0;
+            powerUps.push_back(p);
+        }
+    }
+
+    void renderShop() {
+        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+        SDL_Rect shopRect = {SCREEN_WIDTH / 4, SCREEN_HEIGHT / 4, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+        SDL_RenderFillRect(renderer, &shopRect);
+        
+        renderText("SHOP - Buy Upgrades", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 20);
+        renderText("1. Health +20 (Cost: 20)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 60);
+        renderText("2. Bullet Damage +2 (Cost: 25)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 100);
+        renderText("Press Enter to Continue", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 160);
+        
+        SDL_RenderPresent(renderer);
+    }
+
+    void update() {
+        Uint32 currentTime = SDL_GetTicks();
+
+        if (gameState == SHOP) return;
 
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
         if (keystates[SDL_SCANCODE_W]) player.rect.y -= player.speed;
@@ -116,29 +234,6 @@ private:
         if (keystates[SDL_SCANCODE_D]) player.rect.x += player.speed;
 
         Wall::keepInside(player.rect);
-    }
-
-    void spawnWave() {
-        enemies.clear();
-        for (int i = 0; i < wave * 5; i++) {
-            Enemy e;
-            e.rect = {rand() % SCREEN_WIDTH, rand() % SCREEN_HEIGHT, 30, 30};
-            e.speed = 1 + wave / 3;
-            e.health = 10 + wave * 2;
-            enemies.push_back(e);
-        }
-        if (rand() % 3 == 0) {
-            PowerUp p;
-            p.rect = {rand() % SCREEN_WIDTH, rand() % SCREEN_HEIGHT, 20, 20};
-            p.type = (rand() % 2 == 0) ? PowerUp::HEALTH : PowerUp::SPEED;
-            p.speed = 0;
-            powerUps.push_back(p);
-        }
-    }
-
-    void update() {
-        Uint32 currentTime = SDL_GetTicks();
-
         for (auto& e : enemies) {
             int dx = player.rect.x - e.rect.x;
             int dy = player.rect.y - e.rect.y;
@@ -147,36 +242,33 @@ private:
             e.rect.y += int(e.speed * dy / dist);
 
             if (SDL_HasIntersection(&player.rect, &e.rect)) {
-                playerHealth -= 1;
+                playerHealth -= (e.type == Enemy::TANK) ? 3 : 1;
                 Mix_PlayChannel(-1, hitSound, 0);
                 if (playerHealth <= 0) running = false;
             }
         }
 
-        if (currentTime - lastFireTime > fireCooldown && !enemies.empty()) {
-            Enemy* closestEnemy = nullptr;
-            float minDist = 1e9;
-            for (auto& en : enemies) {
-                float dist = sqrt(pow(player.rect.x - en.rect.x, 2) + pow(player.rect.y - en.rect.y, 2));
-                if (dist < minDist) {
-                    minDist = dist;
-                    closestEnemy = &en;
-                }
-            }
-
-            if (closestEnemy) {
-                Bullet bullet;
-                bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 10, 10};
-                float dx = closestEnemy->rect.x - bullet.rect.x;
-                float dy = closestEnemy->rect.y - bullet.rect.y;
-                float length = sqrt(dx * dx + dy * dy);
+        if (currentTime - lastFireTime > fireCooldown) {
+            int mouseX, mouseY;
+            SDL_GetMouseState(&mouseX, &mouseY);
+        
+            Bullet bullet;
+            bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 10, 10};
+        
+            float dx = mouseX - bullet.rect.x;
+            float dy = mouseY - bullet.rect.y;
+            float length = sqrt(dx * dx + dy * dy);
+            if (length != 0) {
                 bullet.dx = dx / length;
                 bullet.dy = dy / length;
-                bullet.speed = 8.0f;
-
-                bullets.push_back(bullet);
-                lastFireTime = currentTime;
+            } else {
+                bullet.dx = 0;
+                bullet.dy = 0;
             }
+            
+            bullet.speed = 8.0f;
+            bullets.push_back(bullet);
+            lastFireTime = currentTime;
         }
 
         for (auto& b : bullets) {
@@ -192,16 +284,28 @@ private:
             bool hit = false;
             for (auto eIt = enemies.begin(); eIt != enemies.end();) {
                 if (SDL_HasIntersection(&bIt->rect, &eIt->rect)) {
-                    eIt->health -= 5;
-                    if (eIt->health <= 0) eIt = enemies.erase(eIt);
-                    else ++eIt;
+                    eIt->health -= playerDamage;
+                    if (eIt->health <= 0) {
+                        Coin c;
+                        c.rect = {eIt->rect.x + eIt->rect.w / 2, eIt->rect.y + eIt->rect.h / 2, 15, 15};
+                        coinsOnGround.push_back(c);
+        
+                        eIt = enemies.erase(eIt);
+                    } else {
+                        ++eIt;
+                    }
                     hit = true;
                     break;
-                } else ++eIt;
+                } else {
+                    ++eIt;
+                }
             }
-
-            if (hit) bIt = bullets.erase(bIt);
-            else ++bIt;
+        
+            if (hit) {
+                bIt = bullets.erase(bIt);
+            } else {
+                ++bIt;
+            }
         }
 
         for (size_t i = 0; i < powerUps.size();) {
@@ -213,12 +317,30 @@ private:
             } else i++;
         }
 
+        for (size_t i = 0; i < coinsOnGround.size();) {
+            if (SDL_HasIntersection(&player.rect, &coinsOnGround[i].rect)) {
+                coins += 10;
+                coinsOnGround.erase(coinsOnGround.begin() + i);
+            } else {
+                i++;
+            }
+        }
+
         if (enemies.empty()) {
+            if (wave % 5 == 0) {
+                gameState = SHOP;
+            } else {
+                spawnWave();
+            }
             wave++;
             player.speed = playerSpeed;
             score += 100 * wave;
-            spawnWave();
+            
+            
         }
+
+        // Debug output
+        cout << "Health: " << playerHealth << ", Wave: " << wave << ", Score: " << score << endl;
     }
 
     void renderText(const string& message, int x, int y) {
@@ -235,19 +357,31 @@ private:
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-        SDL_RenderFillRect(renderer, &player.rect);
+        SDL_SetRenderDrawColor(renderer, 255, 215, 0, 255);
+        for (auto& c : coinsOnGround) {
+            renderEntity(coinTexture, c.rect);
+        }
+        renderText("Coins: " + to_string(coins), 10, 100);
+        
+        if (gameState == SHOP) {
+            renderShop();
+            return;
+        }
+        
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
 
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        for (auto& e : enemies) SDL_RenderFillRect(renderer, &e.rect);
+        renderEntity(playerTexture, player.rect);
+
+        for (auto& e : enemies) {
+            renderEntity(enemyTexture, e.rect);
+        }
 
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
         for (auto& b : bullets) SDL_RenderFillRect(renderer, &b.rect);
 
         for (auto& p : powerUps) {
-            if (p.type == PowerUp::HEALTH) SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
-            else SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-            SDL_RenderFillRect(renderer, &p.rect);
+            renderEntity(powerUpTexture, p.rect);
         }
 
         renderText("Health: " + to_string(playerHealth), 10, 10);
@@ -256,6 +390,7 @@ private:
 
         SDL_RenderPresent(renderer);
     }
+
 };
 
 int main(int argc, char* argv[]) {
