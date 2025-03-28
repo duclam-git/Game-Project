@@ -52,7 +52,7 @@ public:
 
 class Game {
 public:
-    enum GameState { PLAYING, SHOP };
+    enum GameState { PLAYING, SHOP, UPGRADE_MENU };
     GameState gameState = PLAYING;
     Game() : running(false), wave(1), playerSpeed(5), playerHealth(100), score(0), coins(0) {
         player.rect = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 40, 40};
@@ -75,7 +75,7 @@ public:
         coinTexture = loadTexture("coin.png");
         powerUpTexture = loadTexture("powerup.png");
 
-if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture) return false;
+    if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture) return false;
         return window && renderer && font && hitSound && pickupSound;
     }
 
@@ -95,8 +95,8 @@ if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture) return f
         spawnWave();
         lastFireTime = SDL_GetTicks();
         while (running) {
-            handleEvents();
             update();
+            handleEvents();
             render();
             SDL_Delay(16);
         }
@@ -160,17 +160,33 @@ private:
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
-            if (gameState == SHOP) {
+            
+            if (gameState == SHOP || gameState == UPGRADE_MENU) {
                 if (e.type == SDL_KEYDOWN) {
-                    if (e.key.keysym.sym == SDLK_1 && coins >= 20) { 
-                        playerHealth += 20;
-                        coins -= 20;
-                    } else if (e.key.keysym.sym == SDLK_2 && coins >= 25) {
-                        playerDamage += 2;
-                        coins -= 25;
-                    } else if (e.key.keysym.sym == SDLK_RETURN) { 
-                        gameState = PLAYING;
-                        spawnWave();
+                    if (gameState == SHOP) {
+                        if (e.key.keysym.sym == SDLK_1 && coins >= 20) {
+                            coins-=20;
+                            playerHealth+=20;
+                        } else if(e.key.keysym.sym == SDLK_2 && coins >= 25){
+                            coins -= 25;
+                            playerDamage += 2;
+                        } else if (e.key.keysym.sym == SDLK_RETURN) {
+                            gameState = PLAYING;
+                        }
+
+                    } else if (gameState == UPGRADE_MENU) {
+                        if (e.key.keysym.sym == SDLK_1 && coins >= 30) {
+                            playerSpeed += 1;
+                            coins -= 30;
+                        } else if (e.key.keysym.sym == SDLK_2 && coins >= 40) {
+                            playerDamage += 5;
+                            coins -= 40;
+                        } else if (e.key.keysym.sym == SDLK_3 && coins >= 50) {
+                            playerHealth += 25;
+                            coins -= 50;
+                        } else if (e.key.keysym.sym == SDLK_RETURN) {
+                            gameState = PLAYING;
+                        }
                     }
                 }
             }
@@ -222,10 +238,25 @@ private:
         SDL_RenderPresent(renderer);
     }
 
+    void renderUpgradeMenu() {
+        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+        SDL_Rect upgradeRect = {SCREEN_WIDTH / 4, SCREEN_HEIGHT / 4, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+        SDL_RenderFillRect(renderer, &upgradeRect);
+        
+        renderText("UPGRADE MENU", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 20);
+        renderText("1. Increase Speed (Cost: 30)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 60);
+        renderText("2. Increase Damage (Cost: 40)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 100);
+        renderText("3. Increase Max Health (Cost: 50)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 140);
+        renderText("Press Enter to Continue", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 180);
+        
+        SDL_RenderPresent(renderer);
+    }
+
     void update() {
         Uint32 currentTime = SDL_GetTicks();
 
         if (gameState == SHOP) return;
+        if (gameState == UPGRADE_MENU) return;
 
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
         if (keystates[SDL_SCANCODE_W]) player.rect.y -= player.speed;
@@ -327,11 +358,13 @@ private:
         }
 
         if (enemies.empty()) {
-            if (wave % 5 == 0) {
-                gameState = SHOP;
-            } else {
-                spawnWave();
+            if (wave % 3 == 0 && wave % 5 != 0) {
+                gameState = UPGRADE_MENU;
             }
+            else if (wave % 5 == 0) {
+                gameState = SHOP;
+            }
+            spawnWave();
             wave++;
             player.speed = playerSpeed;
             score += 100 * wave;
@@ -365,6 +398,10 @@ private:
         
         if (gameState == SHOP) {
             renderShop();
+            return;
+        }
+        if (gameState == UPGRADE_MENU) {
+            renderUpgradeMenu();
             return;
         }
         
