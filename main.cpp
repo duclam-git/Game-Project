@@ -34,7 +34,7 @@ struct Bullet {
     SDL_Rect rect;
     double dx, dy;
     double speed;
-    enum BulletType { PISTOL, SHOTGUN, EXPLOSIVE } type;
+    enum BulletType { PISTOL, SHOTGUN } type;
 };
 
 struct PowerUp : public Entity {
@@ -55,7 +55,7 @@ class Game {
 public:
     enum GameState { WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU };
     GameState gameState = WEAPON_SELECTION;
-    enum WeaponType { PISTOL, SHOTGUN, EXPLOSIVE };
+    enum WeaponType { PISTOL, SHOTGUN };
     WeaponType selectedWeapon = PISTOL;
     Game() : running(false), wave(1), playerSpeed(5), playerHealth(100), score(0), coins(0) {
         player.rect = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 40, 40};
@@ -77,6 +77,14 @@ public:
         enemyTexture = loadTexture("enemy.png");
         coinTexture = loadTexture("coin.png");
         powerUpTexture = loadTexture("powerup.png");
+        pistolTexture = loadTexture("pistol.png");
+        shotgunTexture = loadTexture("shotgun.png");
+        shopHealthTexture = loadTexture("shophealth.jfif");
+        shopDamageTexture = loadTexture("shopdamage.png");
+        upgradeSpeedTexture = loadTexture("upgradespeed.png");
+        upgradeDamageTexture = loadTexture("upgradedamage.png");
+        upgradeHealthTexture = loadTexture("upgradehealth.png");
+
 
     if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture) return false;
         return window && renderer && font && hitSound && pickupSound;
@@ -110,6 +118,13 @@ public:
         SDL_DestroyTexture(enemyTexture);
         SDL_DestroyTexture(coinTexture);
         SDL_DestroyTexture(powerUpTexture);
+        SDL_DestroyTexture(pistolTexture);
+        SDL_DestroyTexture(shotgunTexture);
+        SDL_DestroyTexture(shopHealthTexture);
+        SDL_DestroyTexture(shopDamageTexture);
+        SDL_DestroyTexture(upgradeSpeedTexture);
+        SDL_DestroyTexture(upgradeDamageTexture);
+        SDL_DestroyTexture(upgradeHealthTexture);
         IMG_Quit();
         Mix_FreeChunk(hitSound);
         Mix_FreeChunk(pickupSound);
@@ -131,6 +146,13 @@ private:
     SDL_Texture* enemyTexture;
     SDL_Texture* coinTexture;
     SDL_Texture* powerUpTexture;
+    SDL_Texture* pistolTexture;
+    SDL_Texture* shotgunTexture;
+    SDL_Texture* shopHealthTexture;
+    SDL_Texture* shopDamageTexture;
+    SDL_Texture* upgradeSpeedTexture;
+    SDL_Texture* upgradeDamageTexture;
+    SDL_Texture* upgradeHealthTexture;
     Entity player;
     vector<Enemy> enemies;
     vector<Coin> coinsOnGround;
@@ -171,10 +193,6 @@ private:
                 }
                 else if (e.key.keysym.sym == SDLK_2) {
                     selectedWeapon = SHOTGUN;
-                    gameState = PLAYING;
-                }
-                else if (e.key.keysym.sym == SDLK_3) {
-                    selectedWeapon = EXPLOSIVE;
                     gameState = PLAYING;
                 }
             }
@@ -237,15 +255,6 @@ private:
                 }
                 break;
             }
-            case EXPLOSIVE: {
-                Bullet bullet;
-                bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 15, 15};
-                bullet.dx = (mouseX - bullet.rect.x) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2));
-                bullet.dy = (mouseY - bullet.rect.y) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2));
-                bullet.speed = 5.0f;
-                bullets.push_back(bullet);
-                break;
-            }
         }
         lastFireTime = SDL_GetTicks();
     }
@@ -282,41 +291,51 @@ private:
         }
     }
 
+    void renderImage(SDL_Texture* texture, int x, int y, int w, int h) {
+        if (!texture) return; // Avoid crashing if texture failed to load
+        SDL_Rect destRect = {x, y, w, h};
+        SDL_RenderCopy(renderer, texture, nullptr, &destRect);
+    }
+
     void renderWeaponSelection() {
         SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
         SDL_RenderClear(renderer);
-        renderText("Select Your Weapon", SCREEN_WIDTH / 3, 100);
-        renderText("1. Pistol", SCREEN_WIDTH / 3, 150);
-        renderText("2. Shotgun", SCREEN_WIDTH / 3, 200);
-        renderText("3. Explosive", SCREEN_WIDTH / 3, 250);
+
+        renderText("Select Your Weapon", SCREEN_WIDTH / 3 - 50, 100);
+        renderText("1. Pistol", SCREEN_WIDTH / 3 + 100, 150 + 32);
+        renderText("2. Shotgun", SCREEN_WIDTH / 3 + 100, 200 + 64);
+        renderImage(pistolTexture, SCREEN_WIDTH / 3, 150, 64, 64);
+        renderImage(shotgunTexture, SCREEN_WIDTH / 3, 250, 64, 64);
+
         SDL_RenderPresent(renderer);
     }
 
     void renderShop() {
         SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-        SDL_Rect shopRect = {SCREEN_WIDTH / 4, SCREEN_HEIGHT / 4, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
-        SDL_RenderFillRect(renderer, &shopRect);
         
+        renderText("1. Health +20 (Cost: 20)", SCREEN_WIDTH / 3 + 100, SCREEN_HEIGHT / 4 + 60 + 32);
+        renderText("2. Bullet Damage +2 (Cost: 25)", SCREEN_WIDTH / 3 + 100, SCREEN_HEIGHT / 4 + 140 + 32);
+        renderText("Press Enter to Continue", SCREEN_WIDTH / 3 + 100, SCREEN_HEIGHT / 4 + 220);
         renderText("SHOP - Buy Upgrades", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 20);
-        renderText("1. Health +20 (Cost: 20)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 60);
-        renderText("2. Bullet Damage +2 (Cost: 25)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 100);
-        renderText("Press Enter to Continue", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 160);
-        
-        SDL_RenderPresent(renderer);
+        renderImage(shopHealthTexture, SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 60, 64, 64);
+        renderImage(shopDamageTexture, SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 140, 64, 64);
+
+    SDL_RenderPresent(renderer);
     }
 
     void renderUpgradeMenu() {
         SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-        SDL_Rect upgradeRect = {SCREEN_WIDTH / 4, SCREEN_HEIGHT / 4, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
-        SDL_RenderFillRect(renderer, &upgradeRect);
-        
+
         renderText("UPGRADE MENU", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 20);
-        renderText("1. Increase Speed (Cost: 30)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 60);
-        renderText("2. Increase Damage (Cost: 40)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 100);
-        renderText("3. Increase Max Health (Cost: 50)", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 140);
-        renderText("Press Enter to Continue", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 180);
-        
-        SDL_RenderPresent(renderer);
+        renderText("1. Increase Speed (Cost: 30)", SCREEN_WIDTH / 3 + 100, SCREEN_HEIGHT / 4 + 60 + 32);
+        renderText("2. Increase Damage (Cost: 40)", SCREEN_WIDTH / 3 + 100, SCREEN_HEIGHT / 4 + 140 + 32);
+        renderText("3. Increase Max Health (Cost: 50)", SCREEN_WIDTH / 3 + 100, SCREEN_HEIGHT / 4 + 220 + 32);
+        renderText("Press Enter to Continue", SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 280);
+        renderImage(upgradeSpeedTexture, SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 60, 64, 64);
+        renderImage(upgradeDamageTexture, SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 140, 64, 64);
+        renderImage(upgradeHealthTexture, SCREEN_WIDTH / 3, SCREEN_HEIGHT / 4 + 220, 64, 64);
+
+    SDL_RenderPresent(renderer);
     }
 
     void update() {
@@ -441,7 +460,7 @@ private:
 
         SDL_SetRenderDrawColor(renderer, 255, 215, 0, 255);
         
-        renderText("Coins: " + to_string(coins), 10, 100);
+        renderText("Coins: " + to_string(coins), 10, 10);
         
         if (gameState == WEAPON_SELECTION) {
             renderWeaponSelection();
@@ -479,6 +498,7 @@ private:
         renderText("Health: " + to_string(playerHealth), 10, 10);
         renderText("Wave: " + to_string(wave), 10, 40);
         renderText("Score: " + to_string(score), 10, 70);
+        renderText("Coins: " + to_string(coins), 10, 100);
 
         SDL_RenderPresent(renderer);
     }
