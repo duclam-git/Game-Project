@@ -32,8 +32,9 @@ struct Enemy : public Entity {
 
 struct Bullet {
     SDL_Rect rect;
-    float dx, dy;
-    float speed;
+    double dx, dy;
+    double speed;
+    enum BulletType { PISTOL, SHOTGUN, EXPLOSIVE } type;
 };
 
 struct PowerUp : public Entity {
@@ -52,8 +53,10 @@ public:
 
 class Game {
 public:
-    enum GameState { PLAYING, SHOP, UPGRADE_MENU };
-    GameState gameState = PLAYING;
+    enum GameState { WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU };
+    GameState gameState = WEAPON_SELECTION;
+    enum WeaponType { PISTOL, SHOTGUN, EXPLOSIVE };
+    WeaponType selectedWeapon = PISTOL;
     Game() : running(false), wave(1), playerSpeed(5), playerHealth(100), score(0), coins(0) {
         player.rect = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 40, 40};
         player.speed = playerSpeed;
@@ -104,10 +107,10 @@ public:
 
     void cleanup() {
         SDL_DestroyTexture(playerTexture);
-    SDL_DestroyTexture(enemyTexture);
-    SDL_DestroyTexture(coinTexture);
-    SDL_DestroyTexture(powerUpTexture);
-    IMG_Quit();
+        SDL_DestroyTexture(enemyTexture);
+        SDL_DestroyTexture(coinTexture);
+        SDL_DestroyTexture(powerUpTexture);
+        IMG_Quit();
         Mix_FreeChunk(hitSound);
         Mix_FreeChunk(pickupSound);
         TTF_CloseFont(font);
@@ -161,6 +164,21 @@ private:
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
             
+            if (gameState == WEAPON_SELECTION && e.type == SDL_KEYDOWN) {
+                if (e.key.keysym.sym == SDLK_1) {
+                    selectedWeapon = PISTOL;
+                    gameState = PLAYING;
+                }
+                else if (e.key.keysym.sym == SDLK_2) {
+                    selectedWeapon = SHOTGUN;
+                    gameState = PLAYING;
+                }
+                else if (e.key.keysym.sym == SDLK_3) {
+                    selectedWeapon = EXPLOSIVE;
+                    gameState = PLAYING;
+                }
+            }
+
             if (gameState == SHOP || gameState == UPGRADE_MENU) {
                 if (e.type == SDL_KEYDOWN) {
                     if (gameState == SHOP) {
@@ -191,6 +209,45 @@ private:
                 }
             }
         }
+    }
+
+    void shootBullet() {
+        int mouseX, mouseY;
+        SDL_GetMouseState(&mouseX, &mouseY);
+        
+        switch (selectedWeapon) {
+            case PISTOL: {
+                Bullet bullet;
+                bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 10, 10};
+                bullet.dx = (mouseX - bullet.rect.x) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2));
+                bullet.dy = (mouseY - bullet.rect.y) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2));
+                bullet.speed = 8.0f;
+                bullets.push_back(bullet);
+                break;
+            }
+            case SHOTGUN: {
+                for (int i = -1; i <= 1; i++) {
+                    Bullet bullet;
+                    bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 10, 10};
+                    double angleOffset = i * 0.1;
+                    bullet.dx = (mouseX - bullet.rect.x) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2)) + angleOffset;
+                    bullet.dy = (mouseY - bullet.rect.y) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2)) + angleOffset;
+                    bullet.speed = 7.0f;
+                    bullets.push_back(bullet);
+                }
+                break;
+            }
+            case EXPLOSIVE: {
+                Bullet bullet;
+                bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 15, 15};
+                bullet.dx = (mouseX - bullet.rect.x) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2));
+                bullet.dy = (mouseY - bullet.rect.y) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2));
+                bullet.speed = 5.0f;
+                bullets.push_back(bullet);
+                break;
+            }
+        }
+        lastFireTime = SDL_GetTicks();
     }
 
     void spawnWave() {
@@ -225,6 +282,16 @@ private:
         }
     }
 
+    void renderWeaponSelection() {
+        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+        SDL_RenderClear(renderer);
+        renderText("Select Your Weapon", SCREEN_WIDTH / 3, 100);
+        renderText("1. Pistol", SCREEN_WIDTH / 3, 150);
+        renderText("2. Shotgun", SCREEN_WIDTH / 3, 200);
+        renderText("3. Explosive", SCREEN_WIDTH / 3, 250);
+        SDL_RenderPresent(renderer);
+    }
+
     void renderShop() {
         SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
         SDL_Rect shopRect = {SCREEN_WIDTH / 4, SCREEN_HEIGHT / 4, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
@@ -255,6 +322,7 @@ private:
     void update() {
         Uint32 currentTime = SDL_GetTicks();
 
+        if (gameState == WEAPON_SELECTION) return;
         if (gameState == SHOP) return;
         if (gameState == UPGRADE_MENU) return;
 
@@ -279,27 +347,8 @@ private:
             }
         }
 
-        if (currentTime - lastFireTime > fireCooldown) {
-            int mouseX, mouseY;
-            SDL_GetMouseState(&mouseX, &mouseY);
-        
-            Bullet bullet;
-            bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 10, 10};
-        
-            float dx = mouseX - bullet.rect.x;
-            float dy = mouseY - bullet.rect.y;
-            float length = sqrt(dx * dx + dy * dy);
-            if (length != 0) {
-                bullet.dx = dx / length;
-                bullet.dy = dy / length;
-            } else {
-                bullet.dx = 0;
-                bullet.dy = 0;
-            }
-            
-            bullet.speed = 8.0f;
-            bullets.push_back(bullet);
-            lastFireTime = currentTime;
+        if (currentTime - lastFireTime > fireCooldown && SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+            shootBullet();
         }
 
         for (auto& b : bullets) {
@@ -391,11 +440,13 @@ private:
         SDL_RenderClear(renderer);
 
         SDL_SetRenderDrawColor(renderer, 255, 215, 0, 255);
-        for (auto& c : coinsOnGround) {
-            renderEntity(coinTexture, c.rect);
-        }
+        
         renderText("Coins: " + to_string(coins), 10, 100);
         
+        if (gameState == WEAPON_SELECTION) {
+            renderWeaponSelection();
+            return;
+        }
         if (gameState == SHOP) {
             renderShop();
             return;
@@ -409,6 +460,10 @@ private:
         SDL_RenderClear(renderer);
 
         renderEntity(playerTexture, player.rect);
+        
+        for (auto& c : coinsOnGround) {
+            renderEntity(coinTexture, c.rect);
+        }
 
         for (auto& e : enemies) {
             renderEntity(enemyTexture, e.rect);
