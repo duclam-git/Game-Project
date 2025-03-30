@@ -17,6 +17,19 @@ const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 600;
 const int SPAWN_SAFE_RADIUS = 100;
 
+const int PLAYER_START_HEALTH = 100;
+const int PLAYER_START_SPEED = 5;
+const int PLAYER_START_DAMAGE = 10;
+
+const int COIN_VALUE = 5;
+const int HEALTH_PACK_AMOUNT = 20;
+const int DAMAGE_UPGRADE_AMOUNT = 2;
+const int SPEED_UPGRADE_AMOUNT = 1;
+
+const int SHOTGUN_SPREAD_ANGLE = 20;
+const int SHOTGUN_BULLET_COUNT = 3;
+
+
 struct Entity {
     SDL_Rect rect;
     int speed;
@@ -30,6 +43,16 @@ struct Enemy : public Entity {
     int health;
     enum EnemyType { BASIC, FAST, TANK } type;
 };
+
+struct EnemyStats {
+    int health;
+    int speed;
+    int size;
+};
+
+const EnemyStats ENEMY_BASIC  = { 10,  2, 30 };
+const EnemyStats ENEMY_FAST   = {  5,  4, 30 };
+const EnemyStats ENEMY_TANK   = { 30,  1, 40 };
 
 struct Bullet {
     SDL_Rect rect;
@@ -58,7 +81,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
     GameState gameState = TITLE_SCREEN;
     enum WeaponType { PISTOL, SHOTGUN };
     WeaponType selectedWeapon = PISTOL;
-    Game() : running(false), wave(1), playerSpeed(5), playerHealth(100), score(-200), coins(0) {
+    Game() : running(false), wave(1), playerSpeed(PLAYER_START_SPEED), playerHealth(PLAYER_START_HEALTH), playerDamage(PLAYER_START_DAMAGE), score(-200), coins(0) {
         player.rect = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 40, 40};
         player.speed = playerSpeed;
         srand(static_cast<unsigned int>(time(nullptr)));
@@ -86,6 +109,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         upgradeDamageTexture = loadTexture("upgradedamage.png");
         upgradeHealthTexture = loadTexture("upgradehealth.png");
         backgroundTexture = loadTexture("background.png");
+        gameoverTexture = loadTexture("gameover.png");
 
     if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture || !pistolTexture || !shotgunTexture || !shopHealthTexture || !shopDamageTexture || !upgradeSpeedTexture || !upgradeDamageTexture || !upgradeHealthTexture || !backgroundTexture) return false;
         return window && renderer && font && hitSound && pickupSound;
@@ -161,6 +185,7 @@ private:
     SDL_Texture* upgradeDamageTexture;
     SDL_Texture* upgradeHealthTexture;
     SDL_Texture* backgroundTexture;
+    SDL_Texture* gameoverTexture;
     Entity player;
     vector<Enemy> enemies;
     vector<Coin> coinsOnGround;
@@ -235,24 +260,24 @@ private:
                 if (e.type == SDL_KEYDOWN) {
                     if (gameState == SHOP) {
                         if (e.key.keysym.sym == SDLK_1 && coins >= 20) {
-                            coins-=20;
-                            playerHealth+=20;
+                            coins -= 20;
+                            playerHealth += HEALTH_PACK_AMOUNT;
                         } else if(e.key.keysym.sym == SDLK_2 && coins >= 25){
                             coins -= 25;
-                            playerDamage += 2;
+                            playerDamage += DAMAGE_UPGRADE_AMOUNT;
                         } else if (e.key.keysym.sym == SDLK_RETURN) {
                             gameState = PLAYING;
                         }
 
                     } else if (gameState == UPGRADE_MENU) {
                         if (e.key.keysym.sym == SDLK_1) {
-                            playerSpeed += 1;
+                            playerSpeed += SPEED_UPGRADE_AMOUNT;
                             gameState = PLAYING;
                         } else if (e.key.keysym.sym == SDLK_2) {
-                            playerDamage += 5;
+                            playerDamage += DAMAGE_UPGRADE_AMOUNT;
                             gameState = PLAYING;
                         } else if (e.key.keysym.sym == SDLK_3) {
-                            playerHealth += 25;
+                            playerHealth += HEALTH_PACK_AMOUNT;
                             gameState = PLAYING;
                         }
                     }
@@ -276,12 +301,13 @@ private:
                 break;
             }
             case SHOTGUN: {
-                for (int i = -1; i <= 1; i++) {
+                for (int i = - SHOTGUN_BULLET_COUNT / 2; i <= SHOTGUN_BULLET_COUNT / 2; i++) {
                     Bullet bullet;
                     bullet.rect = {player.rect.x + player.rect.w / 2 - 5, player.rect.y + player.rect.h / 2 - 5, 10, 10};
-                    double angleOffset = i * 0.1;
-                    bullet.dx = (mouseX - bullet.rect.x) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2)) + angleOffset;
-                    bullet.dy = (mouseY - bullet.rect.y) / sqrt(pow(mouseX - bullet.rect.x, 2) + pow(mouseY - bullet.rect.y, 2)) + angleOffset;
+                    double angle = atan2(mouseY - bullet.rect.y, mouseX - bullet.rect.x);
+                    angle += i * SHOTGUN_SPREAD_ANGLE / 100.0;
+                    bullet.dx = cos(angle);
+                    bullet.dy = sin(angle);
                     bullet.speed = 7.0f;
                     bullets.push_back(bullet);
                 }
@@ -301,15 +327,17 @@ private:
             int enemyTypeRand = rand() % 3;
             e.type = static_cast<Enemy::EnemyType>(enemyTypeRand);
             if (e.type == Enemy::BASIC) {
-                e.speed = 2 + wave / 5;
-                e.health = 10 + wave * 2;
+                e.health = ENEMY_BASIC.health + wave * 2;
+                e.speed = ENEMY_BASIC.speed + wave / 5;
+                e.rect.w = ENEMY_BASIC.size; e.rect.h = ENEMY_BASIC.size;
             } else if (e.type == Enemy::FAST) {
-                e.speed = 2 + wave / 3;
-                e.health = 5 + wave;
+                e.speed = ENEMY_FAST.speed + wave / 3;
+                e.health = ENEMY_FAST.health + wave;
+                e.rect.w = ENEMY_FAST.size; e.rect.h = ENEMY_FAST.size;
             } else if (e.type == Enemy::TANK) {
-                e.speed = 1 + wave / 10;
-                e.health = 30 + wave * 5;
-                e.rect.w = 40; e.rect.h = 40;
+                e.speed = ENEMY_TANK.speed + wave / 10;
+                e.health = ENEMY_TANK.health + wave * 5;
+                e.rect.w = ENEMY_TANK.size; e.rect.h = ENEMY_TANK.size;
             }
             enemies.push_back(e);
         }
@@ -358,7 +386,7 @@ private:
         SDL_RenderClear(renderer);
     
         int highScore = loadHighScore();
-        renderText("Game Over!", SCREEN_WIDTH / 3, 100);
+        renderImage(gameoverTexture, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
         renderText("Your Score: " + to_string(score), SCREEN_WIDTH / 3, 150);
         renderText("High Score: " + to_string(highScore), SCREEN_WIDTH / 3, 200);
         renderText("Press Enter to return to title", SCREEN_WIDTH / 3, 250);
@@ -516,7 +544,7 @@ private:
 
         for (size_t i = 0; i < coinsOnGround.size();) {
             if (SDL_HasIntersection(&player.rect, &coinsOnGround[i].rect)) {
-                coins += 10;
+                coins += COIN_VALUE;
                 coinsOnGround.erase(coinsOnGround.begin() + i);
             } else {
                 i++;
