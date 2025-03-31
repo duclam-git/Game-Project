@@ -92,6 +92,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         titlebgTexture = loadTexture("assets/images/titlebackground.png");
         startButtonTexture = loadTexture("assets/images/startbutton.png");
         quitButtonTexture = loadTexture("assets/images/quit.png");
+        bulletTexture = loadTexture("assets/images/bulletTexture.png");
         playerTexture = loadTexture("assets/images/player.png");
         enemyTexture = loadTexture("assets/images/enemy.png");
         coinTexture = loadTexture("assets/images/coin.png");
@@ -104,7 +105,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         upgradeDamageTexture = loadTexture("assets/images/upgradedamage.png");
         upgradeHealthTexture = loadTexture("assets/images/upgradehealth.png");
         backgroundTexture = loadTexture("assets/images/background.png");
-        gameoverTexture = loadTexture("assets/images/gameover.png");
+        gameoverTexture = loadTexture("assets/images/gameover.jfif");
 
     if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture || !pistolTexture || !shotgunTexture || !shopHealthTexture || !shopDamageTexture || !upgradeSpeedTexture || !upgradeDamageTexture || !upgradeHealthTexture || !backgroundTexture) return false;
         return window && renderer && font && hitSound && pickupSound;
@@ -143,6 +144,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
 
     void cleanup() {
         Mix_FreeMusic(backgroundMusic);
+        SDL_DestroyTexture(bulletTexture);
         SDL_DestroyTexture(playerTexture);
         SDL_DestroyTexture(enemyTexture);
         SDL_DestroyTexture(coinTexture);
@@ -175,6 +177,7 @@ private:
     SDL_Texture* titlebgTexture;
     SDL_Texture* startButtonTexture;
     SDL_Texture* quitButtonTexture;
+    SDL_Texture* bulletTexture;
     SDL_Texture* playerTexture;
     SDL_Texture* enemyTexture;
     SDL_Texture* coinTexture;
@@ -383,10 +386,10 @@ private:
         SDL_RenderClear(renderer);
     
         int highScore = loadHighScore();
-        renderImage(gameoverTexture, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
-        renderText("Your Score: " + to_string(score), SCREEN_WIDTH / 3, 150);
-        renderText("High Score: " + to_string(highScore), SCREEN_WIDTH / 3, 200);
-        renderText("Press Enter to return to title", SCREEN_WIDTH / 3, 250);
+        renderImage(gameoverTexture, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderText("Your Score: " + to_string(score), SCREEN_WIDTH / 3 + 80, 400);
+        renderText("High Score: " + to_string(highScore), SCREEN_WIDTH / 3 + 50, 450);
+        renderText("Press Enter to return to title", SCREEN_WIDTH / 3, 500);
     
         SDL_RenderPresent(renderer);
     }
@@ -609,7 +612,7 @@ private:
         }
 
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-        for (auto& b : bullets) SDL_RenderFillRect(renderer, &b.rect);
+        for (auto& b : bullets) renderEntity(bulletTexture, b.rect);
 
         for (auto& p : powerUps) {
             renderEntity(powerUpTexture, p.rect);
