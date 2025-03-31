@@ -84,6 +84,9 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096);
         hitSound = Mix_LoadWAV("assets/sounds/hit.wav");
         pickupSound = Mix_LoadWAV("assets/sounds/pickup.wav");
+        floorTexture = loadTexture("assets/images/floorbg.png");
+        startButtonTexture = loadTexture("assets/images/startbutton.png");
+        quitButtonTexture = loadTexture("assets/images/quit.png");
         playerTexture = loadTexture("assets/images/player.png");
         enemyTexture = loadTexture("assets/images/enemy.png");
         coinTexture = loadTexture("assets/images/coin.png");
@@ -160,6 +163,9 @@ private:
     TTF_Font* font;
     Mix_Chunk* hitSound;
     Mix_Chunk* pickupSound;
+    SDL_Texture* startButtonTexture;
+    SDL_Texture* quitButtonTexture;
+    SDL_Texture* floorTexture;
     SDL_Texture* playerTexture;
     SDL_Texture* enemyTexture;
     SDL_Texture* coinTexture;
@@ -352,18 +358,13 @@ private:
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         
-        SDL_Rect playButton = {SCREEN_WIDTH / 3 + 50, 200, 200, 50};
-        SDL_Rect quitButton = {SCREEN_WIDTH / 3 + 50, 250, 200, 50};
+        SDL_Rect playButton = {SCREEN_WIDTH / 3 + 50, 200, 200, 100};
+        SDL_Rect quitButton = {SCREEN_WIDTH / 3 + 50, 300, 200, 100};
         
-        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-        SDL_RenderFillRect(renderer, &playButton);
-        
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        SDL_RenderFillRect(renderer, &quitButton);
+        renderImage(startButtonTexture, SCREEN_WIDTH / 3 + 50, 200, 200, 50);
+        renderImage(quitButtonTexture, SCREEN_WIDTH / 3 + 50, 250, 200, 50);
     
-        renderText("Wave Survival", SCREEN_WIDTH / 3 + 80, 100);
-        renderText("Play The Game", SCREEN_WIDTH / 3 + 50, 200);
-        renderText("Quit Game", SCREEN_WIDTH / 3 + 50, 250);
+        renderText("Dungeon Survival", SCREEN_WIDTH / 3 + 80, 100);
     
         SDL_RenderPresent(renderer);
     }
@@ -567,13 +568,8 @@ private:
     }
 
     void render() {
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
+        renderImage(floorTexture, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-        SDL_SetRenderDrawColor(renderer, 255, 215, 0, 255);
-
-        SDL_Rect bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-        SDL_RenderCopy(renderer, backgroundTexture, NULL, &bgRect);
         
         renderText("Coins: " + to_string(coins), 10, 10);
         
