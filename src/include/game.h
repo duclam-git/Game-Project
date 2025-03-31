@@ -82,6 +82,11 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
         font = TTF_OpenFont("assets/fonts/arial.ttf", 24);
         Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096);
+        backgroundMusic = Mix_LoadMUS("assets/sounds/background.mp3");
+        if (!backgroundMusic) {
+        cout << "Failed to load background music: " << Mix_GetError() << endl;
+        return false;
+        }
         hitSound = Mix_LoadWAV("assets/sounds/hit.wav");
         pickupSound = Mix_LoadWAV("assets/sounds/pickup.wav");
         titlebgTexture = loadTexture("assets/images/titlebackground.png");
@@ -118,6 +123,8 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
 
     void run() {
         running = true;
+        Mix_PlayMusic(backgroundMusic, -1);
+        Mix_VolumeMusic(32);
         while (running) {
             handleEvents();
             
@@ -135,6 +142,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
     }
 
     void cleanup() {
+        Mix_FreeMusic(backgroundMusic);
         SDL_DestroyTexture(playerTexture);
         SDL_DestroyTexture(enemyTexture);
         SDL_DestroyTexture(coinTexture);
@@ -161,6 +169,7 @@ private:
     SDL_Window* window;
     SDL_Renderer* renderer;
     TTF_Font* font;
+    Mix_Music* backgroundMusic;
     Mix_Chunk* hitSound;
     Mix_Chunk* pickupSound;
     SDL_Texture* titlebgTexture;
