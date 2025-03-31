@@ -84,7 +84,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096);
         hitSound = Mix_LoadWAV("assets/sounds/hit.wav");
         pickupSound = Mix_LoadWAV("assets/sounds/pickup.wav");
-        floorTexture = loadTexture("assets/images/floorbg.png");
+        titlebgTexture = loadTexture("assets/images/titlebackground.png");
         startButtonTexture = loadTexture("assets/images/startbutton.png");
         quitButtonTexture = loadTexture("assets/images/quit.png");
         playerTexture = loadTexture("assets/images/player.png");
@@ -163,9 +163,9 @@ private:
     TTF_Font* font;
     Mix_Chunk* hitSound;
     Mix_Chunk* pickupSound;
+    SDL_Texture* titlebgTexture;
     SDL_Texture* startButtonTexture;
     SDL_Texture* quitButtonTexture;
-    SDL_Texture* floorTexture;
     SDL_Texture* playerTexture;
     SDL_Texture* enemyTexture;
     SDL_Texture* coinTexture;
@@ -216,8 +216,8 @@ private:
                 int mouseX = e.button.x;
                 int mouseY = e.button.y;
     
-                SDL_Rect playButton = {SCREEN_WIDTH / 3 + 50, 200, 200, 50};
-                SDL_Rect quitButton = {SCREEN_WIDTH / 3 + 50, 250, 200, 50};
+                SDL_Rect playButton = {SCREEN_WIDTH / 3 + 50, 400, 200, 100};
+                SDL_Rect quitButton = {SCREEN_WIDTH / 3 + 50, 500, 200, 100};
     
                 if (mouseX >= playButton.x && mouseX <= playButton.x + playButton.w &&
                     mouseY >= playButton.y && mouseY <= playButton.y + playButton.h) {
@@ -357,14 +357,14 @@ private:
     void renderTitleScreen() {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+
+        renderImage(titlebgTexture, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         
-        SDL_Rect playButton = {SCREEN_WIDTH / 3 + 50, 200, 200, 100};
-        SDL_Rect quitButton = {SCREEN_WIDTH / 3 + 50, 300, 200, 100};
+        SDL_Rect playButton = {SCREEN_WIDTH / 3 + 50, 400, 200, 100};
+        SDL_Rect quitButton = {SCREEN_WIDTH / 3 + 50, 500, 200, 100};
         
-        renderImage(startButtonTexture, SCREEN_WIDTH / 3 + 50, 200, 200, 50);
-        renderImage(quitButtonTexture, SCREEN_WIDTH / 3 + 50, 250, 200, 50);
-    
-        renderText("Dungeon Survival", SCREEN_WIDTH / 3 + 80, 100);
+        renderImage(startButtonTexture, SCREEN_WIDTH / 3 + 50, 400, 200, 100);
+        renderImage(quitButtonTexture, SCREEN_WIDTH / 3 + 50, 500, 200, 100);
     
         SDL_RenderPresent(renderer);
     }
@@ -540,10 +540,8 @@ private:
         }
 
         if (enemies.empty()) {
-            if (wave % 3 == 0 && wave % 5 != 0) {
                 gameState = UPGRADE_MENU;
-            }
-            else if (wave % 5 == 0) {
+            if (wave % 5 == 0) {
                 gameState = SHOP;
             }
             spawnWave();
@@ -552,9 +550,6 @@ private:
             score += 100 * wave;
             
         }
-
-        // Debug output
-        cout << "Health: " << playerHealth << ", Wave: " << wave - 1<< ", Score: " << score << endl;
     }
 
     void renderText(const string& message, int x, int y) {
@@ -568,8 +563,13 @@ private:
     }
 
     void render() {
-        renderImage(floorTexture, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
 
+        SDL_SetRenderDrawColor(renderer, 255, 215, 0, 255);
+
+        SDL_Rect bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+        SDL_RenderCopy(renderer, backgroundTexture, NULL, &bgRect);
         
         renderText("Coins: " + to_string(coins), 10, 10);
         
