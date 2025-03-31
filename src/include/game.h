@@ -540,7 +540,7 @@ private:
         }
 
         if (enemies.empty()) {
-                gameState = UPGRADE_MENU;
+            if (wave % 3 == 0) gameState = UPGRADE_MENU;
             if (wave % 5 == 0) {
                 gameState = SHOP;
             }
