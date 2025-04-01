@@ -20,6 +20,11 @@ using namespace std;
 struct Entity {
     SDL_Rect rect;
     int speed;
+    int frameWidth, frameHeight;
+    int currentFrame = 0;
+    int maxFrames;
+    int animationSpeed = 100;
+    Uint32 lastFrameTime = 0;
 };
 
 struct Coin {
@@ -64,11 +69,11 @@ public:
 
 class Game {
 public:
-enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GAME_OVER };
+    enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GAME_OVER };
     GameState gameState = TITLE_SCREEN;
     enum WeaponType { PISTOL, SHOTGUN };
     WeaponType selectedWeapon = PISTOL;
-    Game() : running(false), wave(1), playerSpeed(PLAYER_START_SPEED), playerHealth(PLAYER_START_HEALTH), playerDamage(PLAYER_START_DAMAGE), score(-200), coins(0) {
+    Game() : running(false), wave(1), playerSpeed(PLAYER_START_SPEED), playerHealth(PLAYER_START_HEALTH), playerDamage(PLAYER_START_DAMAGE), score(0), coins(0) {
         player.rect = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 40, 40};
         player.speed = playerSpeed;
         srand(static_cast<unsigned int>(time(nullptr)));
@@ -99,12 +104,12 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         powerUpTexture = loadTexture("assets/images/powerup.png");
         pistolTexture = loadTexture("assets/images/pistol.png");
         shotgunTexture = loadTexture("assets/images/shotgun.png");
-        shopHealthTexture = loadTexture("assets/images/shophealth.jfif");
+        shopHealthTexture = loadTexture("assets/images/shophealth.png");
         shopDamageTexture = loadTexture("assets/images/shopdamage.png");
         upgradeSpeedTexture = loadTexture("assets/images/upgradespeed.png");
         upgradeDamageTexture = loadTexture("assets/images/upgradedamage.png");
         upgradeHealthTexture = loadTexture("assets/images/upgradehealth.png");
-        backgroundTexture = loadTexture("assets/images/background.png");
+        backgroundTexture = loadTexture("assets/images/background.jfif");
         gameoverTexture = loadTexture("assets/images/gameover.jfif");
 
     if (!playerTexture || !enemyTexture || !coinTexture || !powerUpTexture || !pistolTexture || !shotgunTexture || !shopHealthTexture || !shopDamageTexture || !upgradeSpeedTexture || !upgradeDamageTexture || !upgradeHealthTexture || !backgroundTexture) return false;
@@ -126,6 +131,7 @@ enum GameState { TITLE_SCREEN, WEAPON_SELECTION, PLAYING, SHOP, UPGRADE_MENU, GA
         running = true;
         Mix_PlayMusic(backgroundMusic, -1);
         Mix_VolumeMusic(32);
+        setupPlayer();
         while (running) {
             handleEvents();
             
@@ -214,9 +220,28 @@ private:
         } while (sqrt(pow(player.rect.x - point.x, 2) + pow(player.rect.y - point.y, 2)) < SPAWN_SAFE_RADIUS);
         return point;
     }
+
+    void setupPlayer() {
+        player.frameWidth = PLAYER_SPRITE_WIDTH;
+        player.frameHeight = PLAYER_SPRITE_HEIGHT;
+        player.maxFrames = 4; // If the sprite sheet has 4 frames
+    }
+
+    void updateAnimation(Entity& entity) {
+        Uint32 currentTime = SDL_GetTicks();
+        if (currentTime > entity.lastFrameTime + entity.animationSpeed) {
+            entity.currentFrame = (entity.currentFrame + 1) % entity.maxFrames;
+            entity.lastFrameTime = currentTime;
+        }
+    }
     
     void renderEntity(SDL_Texture* texture, SDL_Rect& rect) {
         SDL_RenderCopy(renderer, texture, NULL, &rect);
+    }
+
+    void renderEntity(SDL_Texture* texture, Entity& entity) {
+        SDL_Rect srcRect = { entity.currentFrame * entity.frameWidth, 0, entity.frameWidth, entity.frameHeight };
+        SDL_RenderCopy(renderer, texture, &srcRect, &entity.rect);
     }
 
     void handleEvents() {
@@ -387,7 +412,7 @@ private:
     
         int highScore = loadHighScore();
         renderImage(gameoverTexture, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        renderText("Your Score: " + to_string(score), SCREEN_WIDTH / 3 + 80, 400);
+        renderText("Your Score: " + to_string(score), SCREEN_WIDTH / 3 + 50, 400);
         renderText("High Score: " + to_string(highScore), SCREEN_WIDTH / 3 + 50, 450);
         renderText("Press Enter to return to title", SCREEN_WIDTH / 3, 500);
     
@@ -407,7 +432,7 @@ private:
 
         renderText("Select Your Weapon", SCREEN_WIDTH / 3 - 50, 100);
         renderText("1. Pistol", SCREEN_WIDTH / 3 + 100, 150 + 32);
-        renderText("2. Shotgun", SCREEN_WIDTH / 3 + 100, 200 + 64);
+        renderText("2. Shotgun", SCREEN_WIDTH / 3 + 100, 200 + 32);
         renderImage(pistolTexture, SCREEN_WIDTH / 3, 150, 64, 64);
         renderImage(shotgunTexture, SCREEN_WIDTH / 3, 250, 64, 64);
 
@@ -601,7 +626,9 @@ private:
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        renderEntity(playerTexture, player.rect);
+        SDL_RenderCopy(renderer, backgroundTexture, NULL, &bgRect);
+
+        updateAnimation(player);
         
         for (auto& c : coinsOnGround) {
             renderEntity(coinTexture, c.rect);
@@ -617,6 +644,8 @@ private:
         for (auto& p : powerUps) {
             renderEntity(powerUpTexture, p.rect);
         }
+
+        renderEntity(playerTexture, player);
 
         renderText("Health: " + to_string(playerHealth), 10, 10);
         renderText("Wave: " + to_string(wave - 1), 10, 40);

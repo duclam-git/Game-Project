@@ -17,4 +17,7 @@ const int SPEED_UPGRADE_AMOUNT = 1;
 const int SHOTGUN_SPREAD_ANGLE = 20;
 const int SHOTGUN_BULLET_COUNT = 3;
 
+const int PLAYER_SPRITE_WIDTH = 64;
+const int PLAYER_SPRITE_HEIGHT = 64;
+
 #endif
